@@ -1,0 +1,40 @@
+name: Update Application Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'New image tag to deploy'
+        required: true
+        default: 'latest'
+
+jobs:
+  update-deployment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update image tag in deployment
+        run: |
+          # Update the nginx image tag in deployment.yaml
+          sed -i "s|image: nginx:.*|image: nginx:${{ github.event.inputs.image_tag }}|" k8s/deployment.yaml
+          
+          # Show the change
+          echo "Updated deployment.yaml:"
+          cat k8s/deployment.yaml | grep "image:"
+
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add k8s/deployment.yaml
+          git commit -m "Update nginx image to ${{ github.event.inputs.image_tag }}"
+          git push
+
+      - name: Summary
+        run: |
+          echo "✅ Updated nginx image to: ${{ github.event.inputs.image_tag }}"
+          echo "🚀 ArgoCD will automatically sync this change to your cluster"

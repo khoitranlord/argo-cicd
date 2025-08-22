@@ -6,9 +6,9 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
-  project: default
+  project: simple-test-project
   source:
-    repoURL: git@github.com:khoitranlord/argo-cicd.git
+    repoURL: https://github.com/khoitranlord/argo-cicd.git
     targetRevision: HEAD
     path: .
   destination:

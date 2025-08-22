@@ -9,6 +9,7 @@ spec:
   description: Simple test application project
   sourceRepos:
   - 'git@github.com:khoitranlord/argo-cicd.git'
+  - 'https://github.com/khoitranlord/argo-cicd.git'
   destinations:
   - namespace: default
     server: https://kubernetes.default.svc
