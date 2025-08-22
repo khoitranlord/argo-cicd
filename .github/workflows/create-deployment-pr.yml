@@ -1,0 +1,90 @@
+name: Create Deployment PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Image tag to deploy'
+        required: true
+        default: 'latest'
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - dev
+        - staging
+        - prod
+
+jobs:
+  create-deployment-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create feature branch
+        run: |
+          git checkout -b deploy/${{ github.event.inputs.environment }}/${{ github.event.inputs.image_tag }}
+          git push -u origin deploy/${{ github.event.inputs.environment }}/${{ github.event.inputs.image_tag }}
+
+      - name: Update deployment manifest
+        run: |
+          # Update the image tag
+          sed -i "s|image: nginx:.*|image: nginx:${{ github.event.inputs.image_tag }}|" k8s/deployment.yaml
+          
+          # Show the change
+          echo "Updated deployment.yaml:"
+          git diff k8s/deployment.yaml
+
+      - name: Commit changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add k8s/deployment.yaml
+          git commit -m "Deploy nginx:${{ github.event.inputs.image_tag }} to ${{ github.event.inputs.environment }}"
+          git push
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: deploy/${{ github.event.inputs.environment }}/${{ github.event.inputs.image_tag }}
+          title: "🚀 Deploy nginx:${{ github.event.inputs.image_tag }} to ${{ github.event.inputs.environment }}"
+          body: |
+            ## Deployment Request
+            
+            **Environment**: ${{ github.event.inputs.environment }}
+            **Image**: `nginx:${{ github.event.inputs.image_tag }}`
+            **Requested by**: @${{ github.actor }}
+            
+            ### Changes
+            - Updated nginx image from current version to `${{ github.event.inputs.image_tag }}`
+            
+            ### Pre-deployment Checklist
+            - [x] Image tag specified ✅
+            - [ ] Security review completed
+            - [ ] Performance impact assessed
+            - [ ] Rollback plan prepared
+            
+            ### Approval Requirements
+            - [ ] Platform Team approval
+            ${{ github.event.inputs.environment == 'prod' && '- [ ] SRE Team approval (required for production)' || '' }}
+            
+            ### Post-deployment Tasks
+            - [ ] Verify application health
+            - [ ] Monitor error rates
+            - [ ] Confirm performance metrics
+            
+            ---
+            
+            **⚠️ This deployment will be automatically applied by ArgoCD once this PR is merged.**
+            
+            **Risk Level**: ${{ github.event.inputs.environment == 'prod' && '🔴 High' || github.event.inputs.environment == 'staging' && '🟡 Medium' || '🟢 Low' }}
+          labels: |
+            deployment
+            ${{ github.event.inputs.environment }}
+            needs-review

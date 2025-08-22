@@ -1,0 +1,24 @@
+# CODEOWNERS file for GitOps repository
+# This file defines who must review changes to specific parts of the repository
+
+# Global rule - all changes require platform team review
+* @khoitranlord
+
+# Kubernetes manifests require careful review
+k8s/ @khoitranlord
+applications/ @khoitranlord
+projects/ @khoitranlord
+
+# Production-specific configurations require additional approval
+k8s/prod/ @khoitranlord
+applications/prod/ @khoitranlord
+
+# Security and RBAC configurations require security team review
+rbac/ @khoitranlord
+security/ @khoitranlord
+
+# ArgoCD system configurations
+system/ @khoitranlord
+
+# CI/CD pipeline configurations
+.github/workflows/ @khoitranlord

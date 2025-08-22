@@ -1,0 +1,90 @@
+# This file goes in: my-app/.github/workflows/ci.yml
+
+name: Build and Deploy Application
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run tests
+        run: npm test
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+  update-gitops:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout GitOps repository
+        uses: actions/checkout@v4
+        with:
+          repository: khoitranlord/argo-cicd  # Your GitOps repo
+          token: ${{ secrets.GITOPS_TOKEN }}  # Personal Access Token
+          path: gitops
+
+      - name: Update deployment manifest
+        run: |
+          cd gitops
+          # Update the image tag in deployment.yaml
+          sed -i "s|image: ghcr.io/.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}|" k8s/deployment.yaml
+          
+          # Show the change
+          git diff k8s/deployment.yaml
+
+      - name: Commit and push changes
+        run: |
+          cd gitops
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add k8s/deployment.yaml
+          git commit -m "🚀 Deploy ${{ github.repository }}:${{ github.sha }}"
+          git push
+
+      - name: Deployment Summary
+        run: |
+          echo "✅ Successfully updated GitOps repository"
+          echo "🐳 New image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+          echo "🔄 ArgoCD will automatically deploy this change"
