@@ -1,0 +1,36 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: simple-test-project
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: Simple test application project
+  sourceRepos:
+  - 'git@github.com:khoitranlord/argo-cicd.git'
+  destinations:
+  - namespace: default
+    server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+  - group: ''
+    kind: Namespace
+  namespaceResourceWhitelist:
+  - group: ''
+    kind: ConfigMap
+  - group: ''
+    kind: Secret
+  - group: ''
+    kind: Service
+  - group: apps
+    kind: Deployment
+  - group: networking.k8s.io
+    kind: Ingress
+  roles:
+  - name: admin
+    description: Admin role
+    policies:
+    - p, proj:simple-test-project:admin, applications, *, simple-test-project/*, allow
+    - p, proj:simple-test-project:admin, repositories, *, *, allow
+    groups:
+    - argocd-admins
