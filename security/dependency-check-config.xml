@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- OWASP Dependency Check Configuration -->
+<configuration>
+    <!-- Database settings -->
+    <database>
+        <driverName>org.h2.Driver</driverName>
+        <connectionString>jdbc:h2:file:%DATA_DIRECTORY%/odc</connectionString>
+        <user>dc</user>
+        <password>dc</password>
+    </database>
+
+    <!-- Analysis settings -->
+    <analysis>
+        <!-- Enable/disable specific analyzers -->
+        <enabled>
+            <jarAnalyzer>true</jarAnalyzer>
+            <archiveAnalyzer>true</archiveAnalyzer>
+            <assemblyAnalyzer>true</assemblyAnalyzer>
+            <nexusAnalyzer>true</nexusAnalyzer>
+            <pyPackageAnalyzer>true</pyPackageAnalyzer>
+            <pyDistributionAnalyzer>true</pyDistributionAnalyzer>
+            <rubygemAnalyzer>true</rubygemAnalyzer>
+            <opensslAnalyzer>true</opensslAnalyzer>
+            <cmakeAnalyzer>true</cmakeAnalyzer>
+            <autoconfAnalyzer>true</autoconfAnalyzer>
+            <composerAnalyzer>true</composerAnalyzer>
+            <nodeAnalyzer>true</nodeAnalyzer>
+            <nodeAuditAnalyzer>true</nodeAuditAnalyzer>
+            <retireJsAnalyzer>true</retireJsAnalyzer>
+            <golangDepAnalyzer>true</golangDepAnalyzer>
+            <golangModAnalyzer>true</golangModAnalyzer>
+            <cocoapodsAnalyzer>true</cocoapodsAnalyzer>
+            <swiftPackageManagerAnalyzer>true</swiftPackageManagerAnalyzer>
+            <bundleAuditAnalyzer>true</bundleAuditAnalyzer>
+            <libmanAnalyzer>true</libmanAnalyzer>
+            <dartAnalyzer>true</dartAnalyzer>
+        </enabled>
+
+        <!-- Suppression file -->
+        <suppressions>
+            <suppression>
+                <notes>False positive - internal testing library</notes>
+                <cve>CVE-XXXX-XXXX</cve>
+                <file>test-library.jar</file>
+            </suppression>
+        </suppressions>
+
+        <!-- Skip test files -->
+        <skipTestScope>true</skipTestScope>
+
+        <!-- Timeout settings -->
+        <connectionTimeout>10000</connectionTimeout>
+        <readTimeout>60000</readTimeout>
+    </analysis>
+
+    <!-- Reporting settings -->
+    <reporting>
+        <format>ALL</format>
+        <outputDirectory>./reports</outputDirectory>
+        <prettyPrint>true</prettyPrint>
+        
+        <!-- CVSS score threshold -->
+        <cvssv2>7.0</cvssv2>
+        <cvssv3>7.0</cvssv3>
+        
+        <!-- Fail build on CVSS score -->
+        <failBuildOnCVSS>8.0</failBuildOnCVSS>
+    </reporting>
+
+    <!-- NVD API settings -->
+    <nvd>
+        <delay>4000</delay>
+        <maxRetryCount>10</maxRetryCount>
+        <datafeedValidForHours>4</datafeedValidForHours>
+    </nvd>
+
+    <!-- Update settings -->
+    <update>
+        <autoUpdate>true</autoUpdate>
+        <updateOnStartup>true</updateOnStartup>
+    </update>
+
+    <!-- Proxy settings (if needed) -->
+    <!-- 
+    <proxy>
+        <host>proxy.example.com</host>
+        <port>8080</port>
+        <username>user</username>
+        <password>pass</password>
+    </proxy>
+    -->
+
+    <!-- Additional data sources -->
+    <data>
+        <hostedSuppressions>
+            <enabled>true</enabled>
+            <url>https://jeremylong.github.io/DependencyCheck/suppression.xml</url>
+            <forceupdate>false</forceupdate>
+        </hostedSuppressions>
+        
+        <retireJs>
+            <enabled>true</enabled>
+            <retirejsFilterNonVulnerable>false</retirejsFilterNonVulnerable>
+        </retireJs>
+        
+        <ossIndex>
+            <enabled>true</enabled>
+            <url>https://ossindex.sonatype.org</url>
+            <warnOnlyOnRemoteErrors>false</warnOnlyOnRemoteErrors>
+        </ossIndex>
+    </data>
+</configuration>

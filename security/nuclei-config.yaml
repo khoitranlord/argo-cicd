@@ -1,0 +1,76 @@
+# Nuclei Configuration for DAST Security Testing
+# Place this in your application repository as .nuclei-config.yaml
+
+# Templates to include
+include-tags:
+  - cve
+  - vuln
+  - misconfig
+  - exposure
+  - injection
+  - xss
+  - sqli
+  - rce
+  - lfi
+  - ssrf
+  - xxe
+
+# Templates to exclude (if too noisy)
+exclude-tags:
+  - info
+  - low
+
+# Severity levels to include
+include-severity:
+  - critical
+  - high
+  - medium
+
+# Output configuration
+output: nuclei-results.json
+json: true
+markdown-export: nuclei-report.md
+
+# Rate limiting
+rate-limit: 100
+bulk-size: 25
+concurrency: 10
+
+# Headers to include in requests
+header:
+  - "User-Agent: Nuclei Security Scanner"
+  - "X-Security-Test: true"
+
+# Custom variables
+variables:
+  domain: "localhost:3000"
+  schema: "http"
+
+# Nuclei update configuration
+update-templates: true
+automatic-scan: true
+
+# Authentication (if needed)
+# auth:
+#   username: "test"
+#   password: "test"
+
+# Proxy configuration (if needed)
+# proxy-url: "http://127.0.0.1:8080"
+
+# Custom matchers
+matchers:
+  - name: "status"
+    type: "status"
+    status:
+      - 200
+      - 301
+      - 302
+      - 403
+      - 500
+
+# Workflow configuration
+workflows: true
+include-conditions:
+  - "status_code_1 == 200"
+  - "!contains(body, 'error')"

@@ -1,0 +1,219 @@
+# Security Policy Configuration
+# This defines security gates and thresholds for the pipeline
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: security-policy
+  namespace: argocd
+data:
+  # SAST (Static Application Security Testing) thresholds
+  sast-policy.yaml: |
+    sast:
+      codeql:
+        fail_on: ["error"]
+        max_errors: 0
+        allowed_warnings: 5
+      
+      semgrep:
+        fail_on: ["ERROR"]
+        max_high_severity: 0
+        max_medium_severity: 3
+        
+      bandit:
+        fail_on: ["HIGH", "MEDIUM"]
+        max_high_confidence: 0
+        max_medium_confidence: 2
+
+  # Dependency vulnerability thresholds  
+  dependency-policy.yaml: |
+    dependencies:
+      npm_audit:
+        max_critical: 0
+        max_high: 3
+        max_moderate: 10
+        fail_on_critical: true
+        
+      snyk:
+        max_critical: 0
+        max_high: 5
+        ignore_dev_dependencies: true
+        
+      owasp_dependency_check:
+        cvss_threshold: 7.0
+        fail_build_on_cvss: 8.0
+        max_high_vulnerabilities: 3
+
+  # Container security thresholds
+  container-policy.yaml: |
+    container:
+      trivy:
+        max_critical: 0
+        max_high: 2
+        max_medium: 10
+        ignore_unfixed: true
+        
+      grype:
+        fail_on: ["Critical", "High"]
+        max_critical: 0
+        max_high: 1
+        
+      hadolint:
+        fail_on: ["error"]
+        max_warnings: 5
+
+  # DAST (Dynamic Application Security Testing) thresholds
+  dast-policy.yaml: |
+    dast:
+      zap:
+        max_high_risk: 0
+        max_medium_risk: 2
+        max_low_risk: 10
+        fail_on_high: true
+        
+      nuclei:
+        max_critical: 0
+        max_high: 1
+        max_medium: 5
+        exclude_info: true
+
+  # Secret scanning policy
+  secrets-policy.yaml: |
+    secrets:
+      trufflehog:
+        fail_on_verified: true
+        max_unverified: 0
+        
+      gitleaks:
+        fail_on_leak: true
+        exclude_paths:
+          - "test/"
+          - "docs/"
+          - "*.md"
+
+  # Security quality gates
+  quality-gates.yaml: |
+    quality_gates:
+      # Development environment - more lenient
+      development:
+        sast_required: true
+        dependency_scan_required: true
+        container_scan_required: true
+        dast_required: false
+        secret_scan_required: true
+        max_severity_allowed: "medium"
+        
+      # Staging environment - stricter
+      staging:
+        sast_required: true
+        dependency_scan_required: true
+        container_scan_required: true
+        dast_required: true
+        secret_scan_required: true
+        max_severity_allowed: "low"
+        require_all_scans_pass: true
+        
+      # Production environment - strictest
+      production:
+        sast_required: true
+        dependency_scan_required: true
+        container_scan_required: true
+        dast_required: true
+        secret_scan_required: true
+        max_severity_allowed: "none"
+        require_all_scans_pass: true
+        require_manual_approval: true
+        block_on_any_vulnerability: true
+
+---
+# Security scanning schedule
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: security-scan-schedule
+  namespace: argocd
+data:
+  schedule.yaml: |
+    # Automated security scanning schedule
+    schedules:
+      # Daily dependency scan
+      dependency_scan:
+        cron: "0 6 * * *"  # 6 AM daily
+        scan_types: ["npm-audit", "snyk", "owasp-dep-check"]
+        notify_on: ["critical", "high"]
+        
+      # Weekly full security scan
+      full_security_scan:
+        cron: "0 2 * * 0"  # 2 AM every Sunday
+        scan_types: ["sast", "dast", "container", "secrets"]
+        notify_on: ["medium", "high", "critical"]
+        
+      # Monthly compliance scan
+      compliance_scan:
+        cron: "0 3 1 * *"  # 3 AM first day of month
+        scan_types: ["all"]
+        generate_report: true
+        notify_stakeholders: true
+
+---
+# Security notification configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: security-notifications
+  namespace: argocd
+data:
+  notifications.yaml: |
+    notifications:
+      # Slack notifications
+      slack:
+        webhook_url: "${SLACK_WEBHOOK_URL}"
+        channels:
+          critical: "#security-alerts"
+          high: "#security-alerts"
+          medium: "#dev-security"
+          low: "#dev-security"
+        
+      # Email notifications  
+      email:
+        smtp_server: "smtp.company.com"
+        recipients:
+          security_team: ["security@company.com"]
+          dev_team: ["dev@company.com"]
+          sre_team: ["sre@company.com"]
+        
+      # Teams notifications
+      teams:
+        webhook_url: "${TEAMS_WEBHOOK_URL}"
+        mention_on: ["critical", "high"]
+        
+    # Notification templates
+    templates:
+      vulnerability_found: |
+        🚨 Security Vulnerability Detected
+        
+        **Severity**: {{ .severity }}
+        **Repository**: {{ .repository }}
+        **Scanner**: {{ .scanner }}
+        **Vulnerability**: {{ .vulnerability }}
+        **Description**: {{ .description }}
+        **Fix Available**: {{ .fix_available }}
+        
+        **Action Required**: {{ .action_required }}
+        
+      scan_completed: |
+        ✅ Security Scan Completed
+        
+        **Repository**: {{ .repository }}
+        **Scan Type**: {{ .scan_type }}
+        **Status**: {{ .status }}
+        **Vulnerabilities Found**: {{ .vuln_count }}
+        **Report**: {{ .report_url }}
+        
+      deployment_blocked: |
+        🚫 Deployment Blocked - Security Issues
+        
+        **Repository**: {{ .repository }}
+        **Environment**: {{ .environment }}
+        **Blocking Issues**: {{ .blocking_issues }}
+        **Action**: Review and fix security issues before deployment

